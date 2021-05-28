@@ -84,7 +84,7 @@ jobs:
           key: frontend-build
       # Your job code here
       - run:
-          name: Back-end build
+          name: Run Frontend tests
           command: |
              # Your code here
              cd ~/project/frontend
@@ -101,27 +101,49 @@ jobs:
           key: backend-build
       # Your job code here
       - run:
-          name: Back-end build
+          name: Run Backend tests
           command: |
              # Your code here
              cd ~/project/backend
              npm run test
             
-#   scan-frontend:
-#     docker:
-#       # Docker image here
-#     steps:
-#       # Checkout code from git
-#       # Restore from cache
-#       # Your job code here
+  scan-frontend:
+    docker:
+      # Docker image here
+      - image: circleci/node:13.8.0
+    steps:
+      # Checkout code from git
+      - checkout
+      # Restore from cache
+      - restore_cache:
+          key: frontend-build
+      # Your job code here
+      - run:
+          name: Scan Frontend dependencies
+          command: |
+             # Your code here
+             cd ~/project/frontend
+             npm audit --audit-level=critical
+             
 
-#   scan-backend:
-#     docker:
-#       # Docker image here
-#     steps:
-#       # Checkout code from git
-#       # Restore from cache
-#       # Your job code here
+
+  scan-backend:
+    docker:
+      # Docker image here
+      - image: circleci/node:13.8.0
+    steps:
+      # Checkout code from git
+      - checkout
+      # Restore from cache
+      - restore_cache:
+          key: backend-build
+      # Your job code here
+      - run:
+          name: Scan Backend dependencies
+          command: |
+             # Your code here
+             cd ~/project/backend
+             npm audit --audit-level=critical
 
 #   deploy-infrastructure:
 #     docker:
@@ -298,10 +320,10 @@ workflows:
           requires: [build-frontend]
       - test-backend:
           requires: [build-backend]
-      # - scan-backend:
-      #     requires: [build-backend]
-      # - scan-frontend:
-      #     requires: [build-frontend]
+      - scan-backend:
+          requires: [build-backend]
+      - scan-frontend:
+          requires: [build-frontend]
       # - deploy-infrastructure:
       #     requires: [test-frontend, test-backend, scan-frontend, scan-backend]
       #     filters:
