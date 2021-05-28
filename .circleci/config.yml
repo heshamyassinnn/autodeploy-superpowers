@@ -123,6 +123,7 @@ jobs:
           command: |
              # Your code here
              cd ~/project/frontend
+             npm install
              npm audit fix --audit-level=critical --force
              
 
