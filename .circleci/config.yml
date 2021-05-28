@@ -44,8 +44,8 @@ jobs:
           name: Build front-end
           command: |
             # Your code here
+            cd ~/project/frontend
             npm install
-            cd frontend
             npm run build
             cd dist
             ls
@@ -64,7 +64,7 @@ jobs:
           name: Back-end build
           command: |
              # Your code here
-             cd backend
+             cd ~/project/backend
              npm install
              npm run build
              cd dist
