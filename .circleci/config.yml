@@ -270,9 +270,6 @@ jobs:
           name: Install dependencies
           command: |
             # Your code here
-            - run:
-          name: awscli install
-          command: |
             sudo apt-get -y -qq update
             sudo apt-get -qq install awscli
             sudo apt-get -y -qq install python3
