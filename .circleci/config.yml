@@ -71,33 +71,32 @@ commands:
             }
   destroy-environment:
     description: Destroy back-end and front-end cloudformation stacks given a workflow ID.
-    # parameters:
-    #   # Add parameter here   
     steps:
       - run:
           name: Destroy environments
           when: on_fail
           command: |
-            # Your code here
-            exit 1
+            # Delete files from S3 bucket
+            aws s3 rm s3://udapeople-${CIRCLE_WORKFLOW_ID}/ --recursive
+            # Delete frontend stack
+            aws cloudformation delete-stack --stack-name frontend-${CIRCLE_WORKFLOW_ID}
+            # Delete backend stack
+            aws cloudformation delete-stack --stack-name backend-${CIRCLE_WORKFLOW_ID}
 
   revert-migrations:
     description: Revert the last migration if successfully run in the current workflow.
-    # parameters:
-    #   # Add parameter here     
     steps:
       - run:
           name: Revert migrations
-          # Add when this will run
+          when: on_fail
           command: |
             # Curl command here to see if there was a successful migration associated with the workflow id, store result in SUCCESS variable
-            SUCCESS = 1
-            if(( $SUCCESS==1 )); 
+            MIGRATION_RESULT=$(curl -H "token: ${CIRCLE_WORKFLOW_ID}" --request GET https://api.memstash.io/values/migration_result)
+            if(( ${MIGRATION_RESULT} >= 1 ));
             then
-            #  cd ~/project/backend
-            #  npm install
-            #  Add revert code here. You can find this in the Getting Started section.
-              exit 1
+              cd ~/project/backend
+              npm install
+              npm run migrations:revert
             fi
             
 jobs:
@@ -113,7 +112,7 @@ jobs:
           name: Build front-end
           command: |
             cd frontend
-            npm install
+            npm i
             npm run build
       - save_cache:
           paths: [frontend/node_modules]
@@ -133,7 +132,7 @@ jobs:
           name: Back-end build
           command: |
             cd backend
-            npm install
+            npm i
             npm run build
       - run:
           name: Copy compiled backend for future use in Ansible
@@ -161,13 +160,17 @@ jobs:
       - checkout
       # Restore from cache
       - restore_cache:
-          key: frontend-${CIRCLE_WORKFLOW_ID}
+          keys:
+            - frontend-${CIRCLE_WORKFLOW_ID}
       - run:
           name: Run Frontend tests
           command: |
-            ls
             cd frontend
+            ls
+            sudo npm install oauth-sign
             npm run test
+      - notify-failure
+      - notify-success
 
   test-backend:
     docker:
@@ -184,6 +187,8 @@ jobs:
             ls
             cd backend
             npm run test
+      - notify-failure
+      - notify-success
 
   scan-frontend:
     docker:
@@ -200,6 +205,8 @@ jobs:
           command: |
             cd frontend
             npm audit fix --audit-level=critical --force
+      - notify-failure
+      - notify-success
 
 
   scan-backend:
@@ -211,12 +218,15 @@ jobs:
       - checkout
       # Restore from cache
       - restore_cache:
-          key: backend-${CIRCLE_WORKFLOW_ID}
+          keys:
+            - backend-${CIRCLE_WORKFLOW_ID}
       - run:
           name: Scan Backend dependencies
           command: |
             cd backend
             npm audit fix --audit-level=critical --force
+      - notify-failure
+      - notify-success
 
   deploy-infrastructure:
     docker:
@@ -251,6 +261,8 @@ jobs:
             echo BACKEND EC2 IP ${INSTANCE_IP}
             curl -H "Content-Type: text/plain" -H "token: $MEMSTASH_TOKEN" --request PUT --data ${INSTANCE_IP} https://api.memstash.io/values/instance_ip
       - destroy-environment
+      - notify-failure
+      - notify-success
 
   configure-infrastructure:
     docker:
@@ -275,6 +287,8 @@ jobs:
           command: |
             echo $(curl -H "token: $MEMSTASH_TOKEN" --request GET https://api.memstash.io/values/instance_ip) >> .circleci/ansible/inventory.txt
             ansible-playbook -i .circleci/ansible/inventory.txt .circleci/ansible/configure-server.yml -v
+      - notify-failure
+      - notify-success
 
   run-migrations:
     docker:
@@ -303,6 +317,8 @@ jobs:
                --data ${MIGRATION_RESULT} \
                https://api.memstash.io/values/migration_result
       - destroy-environment
+      - notify-failure
+      - notify-success
 
   deploy-frontend:
     docker:
@@ -332,6 +348,8 @@ jobs:
             aws s3 cp ./frontend/dist s3://udapeople-${CIRCLE_WORKFLOW_ID}/ --recursive
       - revert-migrations
       - destroy-environment
+      - notify-failure
+      - notify-success
 
 
   deploy-backend:
@@ -374,6 +392,8 @@ jobs:
             ansible-playbook -i .circleci/ansible/inventory.txt .circleci/ansible/deploy-backend.yml -v
       - revert-migrations
       - destroy-environment
+      - notify-failure
+      - notify-success
 
 #   smoke-test:
 #     docker:
