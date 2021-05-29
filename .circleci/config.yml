@@ -285,8 +285,7 @@ jobs:
           command: |
             echo $(curl -H "token: $MEMSTASH_TOKEN" --request GET https://api.memstash.io/values/instance_ip) >> .circleci/ansible/inventory.txt
             ansible-playbook -i .circleci/ansible/inventory.txt .circleci/ansible/configure-server.yml -v
-      - notify-failure
-      - notify-success
+      
 
   run-migrations:
     docker:
