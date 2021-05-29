@@ -131,7 +131,6 @@ jobs:
              # Your code here
              cd ~/project/backend
              npm run test
-             return 1
       - slack-fail
             
   scan-frontend:
