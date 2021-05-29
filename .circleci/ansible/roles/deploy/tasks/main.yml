@@ -1,38 +1,42 @@
----
-
-- name: "install Ansible dependencies"
+- name: "Create app folder"
   become: true
-  apt:
-    name: ["nodejs", "npm", "python3", "tar", "gzip", "git"]
-    state: latest
-    update_cache: yes
-
-- name: "install pm2"
-  become: true
-  npm:
-    name: pm2
-    global: yes
-    production: yes
-    state: present
-
-- name: "create the application directory"
-  become_user: ubuntu
-  become: yes
   file:
-    path: ~/app
+    path: /home/ubuntu/app
     state: directory
 
-- name: "untar the backend app file"
-  become_user: ubuntu
-  become: yes
+- name: "Copy backend build to server"
+  become: true
   unarchive:
-    src: ~/project/backend.tar
-    dest: ~/app
+    src: /tmp/workspace/backend.tar.gz
+    dest: /home/ubuntu/app/
+    owner: ubuntu
 
-- name: "start PM2"
-  become_user: ubuntu
+- name: "Copy package.json to server"
+  become: true
+  copy:
+    src: /tmp/workspace/package.json
+    dest: /home/ubuntu/app/
+    owner: ubuntu
+
+- name: "Install backend dependencies using NPM"
+  command: npm install --production
+  args:
+    chdir: /home/ubuntu/app
+
+- name: "Start backend with pm2"
+  shell: |
+    export ENVIRONMENT=production
+    export NODE_ENV=production
+    export TYPEORM_HOST="{{ lookup('env', 'TYPEORM_HOST') }}"
+    export TYPEORM_ENTITIES="{{ lookup('env', 'TYPEORM_ENTITIES') }}"
+    export TYPEORM_USERNAME="{{ lookup('env', 'TYPEORM_USERNAME') }}"
+    export TYPEORM_PASSWORD="{{ lookup('env', 'TYPEORM_PASSWORD') }}"
+    export TYPEORM_DATABASE="{{ lookup('env', 'TYPEORM_DATABASE') }}"
+    pm2 start main.js --name udapeople-backend
+  args:
+    chdir: /home/ubuntu/app
+
+- name: "Set pm2 start as service"
   become: yes
   shell: |
-    cd ~/app/backend
-    npm i
-    pm2 start npm --name backend -- start
+    env PATH=$PATH:/usr/local/bin pm2 startup -u ubuntu

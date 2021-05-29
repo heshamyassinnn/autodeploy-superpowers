@@ -4,6 +4,71 @@ orbs:
   slack: circleci/slack@4.2.0
 
 commands:
+  notify-failure:
+    description: Notify failure to Slack
+    steps:
+      - slack/notify:
+          channel: C023EV1E6M8
+          event: fail
+          custom: |
+            {
+              "text": "",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "❌ *Failure* #${CIRCLE_BUILD_NUM} `${CIRCLE_PROJECT_REPONAME}` on `${CIRCLE_BRANCH}`"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Job"
+                      },
+                      "url": "${CIRCLE_BUILD_URL}"
+                    }
+                  ]
+                }
+              ]
+            }
+
+  notify-success:
+    description: Notify success to Slack
+    steps:
+      - slack/notify:
+          channel: C023EV1E6M8
+          event: pass
+          custom: |
+            {
+              "text": "",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "✅ *Success* #${CIRCLE_BUILD_NUM} `${CIRCLE_PROJECT_REPONAME}` on `${CIRCLE_BRANCH}`"
+                  }
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Job"
+                      },
+                      "url": "${CIRCLE_BUILD_URL}"
+                    }
+                  ]
+                }
+              ]
+            }
   destroy-environment:
     description: Destroy back-end and front-end cloudformation stacks given a workflow ID.
     # parameters:
@@ -34,25 +99,6 @@ commands:
             #  Add revert code here. You can find this in the Getting Started section.
               exit 1
             fi
-
-  slack-fail:
-    description: Send notification to Slack
-    steps:
-      - slack/notify:
-          channel: C023EV1E6M8
-          event: fail
-          custom: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                      "type": "mrkdwn",
-                      "text": "Failed in build #$CIRCLE_BUILD_NUM of $CIRCLE_REPOSITORY_URL ($CIRCLE_BRANCH)\n-$CIRCLE_USERNAME: $COMMIT_MESSAGE"
-                  }
-                }
-              ]
-            }
             
 jobs:
   build-frontend:
@@ -61,20 +107,19 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          keys: [frontend-build]
+          keys:
+            - frontend-${CIRCLE_WORKFLOW_ID}
       - run:
           name: Build front-end
           command: |
-            # Your code here
-            cd ~/project/frontend
-            npm install
+            cd frontend
+            npm i
             npm run build
-            cd dist
-            ls
       - save_cache:
           paths: [frontend/node_modules]
-          key: frontend-build
-      - slack-fail
+          key: frontend-${CIRCLE_WORKFLOW_ID}
+      - notify-failure
+      - notify-success
 
   build-backend:
     docker:
@@ -82,20 +127,29 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          keys: [backend-build]
+          keys:
+            - backend-${CIRCLE_WORKFLOW_ID}
       - run:
           name: Back-end build
           command: |
-             # Your code here
-             cd ~/project/frontend
-             npm install
-             npm run build
-             cd dist
-             ls
+            cd backend && npm i && npm run build
+      - run:
+          name: Copy compiled backend for future use in Ansible
+          command: |
+            mkdir /tmp/workspace
+            cp ./backend/package.json /tmp/workspace/
+            cd backend/dist
+            tar -zcvf /tmp/workspace/backend.tar.gz ./
       - save_cache:
           paths: [backend/node_modules]
-          key: backend-build
-      - slack-fail
+          key: backend-${CIRCLE_WORKFLOW_ID}
+      - persist_to_workspace:
+          root: /tmp/workspace
+          paths:
+            - backend.tar.gz
+            - package.json
+      - notify-failure
+      - notify-success
 
   test-frontend:
     docker:
@@ -105,16 +159,14 @@ jobs:
       - checkout
       # Restore from cache
       - restore_cache:
-          key: frontend-build
-      # Your job code here
+          keys:
+            - frontend-${CIRCLE_WORKFLOW_ID}
       - run:
           name: Run Frontend tests
           command: |
-             # Your code here
-             cd ~/project/frontend
-             npm run test
-      - slack-fail
-                
+            cd frontend
+            npm run test
+
   test-backend:
     docker:
       - image: circleci/node:13.8.0
@@ -123,16 +175,14 @@ jobs:
       - checkout
       # Restore from cache
       - restore_cache:
-          key: backend-build
-      # Your job code here
+          keys:
+            - backend-${CIRCLE_WORKFLOW_ID}
       - run:
           name: Run Backend tests
           command: |
-             # Your code here
-             cd ~/project/backend
-             npm run test
-      - slack-fail
-            
+            cd backend
+            npm run test
+
   scan-frontend:
     docker:
       # Docker image here
@@ -142,17 +192,13 @@ jobs:
       - checkout
       # Restore from cache
       - restore_cache:
-          key: frontend-build
-      # Your job code here
+          keys:
+            - frontend-${CIRCLE_WORKFLOW_ID}
       - run:
           name: Scan Frontend dependencies
           command: |
-             # Your code here
-             cd ~/project/frontend
-             npm install
-             npm audit fix --audit-level=critical --force
-      - slack-fail
-             
+            cd frontend
+            npm audit --audit-level=critical
 
 
   scan-backend:
@@ -164,15 +210,13 @@ jobs:
       - checkout
       # Restore from cache
       - restore_cache:
-          key: backend-build
-      # Your job code here
+          keys:
+            - backend-${CIRCLE_WORKFLOW_ID}
       - run:
           name: Scan Backend dependencies
           command: |
-             # Your code here
-             cd ~/project/backend
-             npm audit fix --audit-level=critical --force
-      - slack-fail
+            cd backend
+            npm audit --audit-level=critical
 
   deploy-infrastructure:
     docker:
@@ -182,82 +226,55 @@ jobs:
       # Checkout code from git
       - checkout
       - run:
-          name: Install dependencies
-          command: |
-            yum install -y tar gzip
-      - run:
           name: Ensure back-end infrastructure exists
           command: |
             aws cloudformation deploy \
               --template-file .circleci/files/backend.yml \
-              --tags project=udacity \
-              --stack-name backend-${CIRCLE_WORKFLOW_ID:0:7} \
-              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}" 
+              --tags project=udapeople-backend \
+              --stack-name "backend-${CIRCLE_WORKFLOW_ID}" \
+              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID}"
       - run:
           name: Ensure front-end infrastructure exist
           command: |
             aws cloudformation deploy \
               --template-file .circleci/files/frontend.yml \
-              --tags project=udacity \
-              --stack-name frontend-${CIRCLE_WORKFLOW_ID:0:7} \
-              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}" 
+              --tags project=udapeople-frontend \
+              --stack-name "frontend-${CIRCLE_WORKFLOW_ID}" \
+              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID}"
       - run:
-          name: Add back-end ip to ansible inventory
+          name: Store back-end IP using memstash.io
           command: |
-            ip=$(aws ec2 describe-instances \
-              --query 'Reservations[*].Instances[*].PublicIpAddress' \
-              --filters "Name=tag:project,Values=udacity" \
-              --output text) 
-            
-            echo "$ip" >> .circleci/ansible/inventory.txt
-            echo "$ip"
-            curl -H "Content-Type: text/plain" -H "token: IP-${CIRCLE_WORKFLOW_ID:0:9}" \
-            --request PUT \
-            --data "$ip" https://api.memstash.io/values/IP
-
-      - run:
-          name: Dependencies
-          command: |
-            cat .circleci/ansible/inventory.txt
-            ls ~/project/.circleci/ansible/
-            cat ~/project/.circleci/ansible/inventory.txt
-            yum -y install tar gzip jq npm
-      - persist_to_workspace:
-          root: .circleci/ansible
-          paths:
-            - inventory.txt
-      # Here's where you will add some code to rollback on failure      
+            INSTANCE_IP=$(aws ec2 describe-instances \
+              --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID}" \
+              --query 'Reservations[*].Instances[*].PublicDnsName' \
+              --output text)
+            echo BACKEND EC2 IP ${INSTANCE_IP}
+            curl -H "Content-Type: text/plain" -H "token: $MEMSTASH_TOKEN" --request PUT --data ${INSTANCE_IP} https://api.memstash.io/values/instance_ip
+      - destroy-environment
 
   configure-infrastructure:
     docker:
-      # Docker image here that supports Ansible
-      - image: python:3.7-alpine3.12
+      - image: python:3.7-alpine3.11
     steps:
       # Checkout code from git
       - checkout
       # Add ssh keys with fingerprint
       - add_ssh_keys:
           fingerprints:
-            - f9:d6:b4:3b:87:9c:50:38:22:2f:28:29:78:10:a6:9c
-      # attach workspace
-      - attach_workspace:
-          at: /tmp/.circleci/ansible
+            - "9e:49:06:a9:1f:7b:8e:4a:c3:8d:f8:73:99:60:c1:65:7e:79:1f:cb"
       - run:
-          name: Install dependencies
+          name: Install ansible
           command: |
-            # Your code here
-            apk add --no-cache python3 py3-pip \
-            && pip3 install --upgrade pip \
-            && pip3 install awscli \
-            && rm -rf /var/cache/apk/*
-
             apk add --update ansible
+            ansible-galaxy install weareinteractive.environment
       - run:
-          name: Configure server
+          name: Install curl
+          command: apk add curl
+      - run:
+          name: Configure backend server
           command: |
-            # Your code here
-            ansible-playbook -i /tmp/.circleci/ansible/inventory.txt .circleci/ansible/configure-server.yml
-      # Here's where you will add some code to rollback on failure      
+            echo $(curl -H "token: $MEMSTASH_TOKEN" --request GET https://api.memstash.io/values/instance_ip) >> .circleci/ansible/inventory.txt
+            ansible-playbook -i .circleci/ansible/inventory.txt .circleci/ansible/configure-server.yml -v
 
   run-migrations:
     docker:
@@ -266,86 +283,60 @@ jobs:
     steps:
       # Checkout code from git
       - checkout
-      - run:
-          name: Install dependencies
-          command: |
-            # Your code here
-            sudo apt-get -y -qq update
-            sudo apt-get -qq install awscli
-            sudo apt-get -y -qq install python3
-
+      - restore_cache:
+          keys: backend-${CIRCLE_WORKFLOW_ID}
       - run:
           name: Run migrations
           command: |
             cd backend
-            npm install
-            npm run build
-            touch migration.txt
-            npm run migrations >> migration.txt
-            cat migration.txt
-
+            npm run migrations > migrationOutput.txt
+          no_output_timeout: 15m
       - run:
           name: Send migration results to memstash
           command: |
-            # Your code here
-            if grep -q "has been executed successfully." migration.txt
-            then
-            curl -H "Content-Type: text/plain" -H "token: ${CIRCLE_WORKFLOW_ID}" \
-            --request PUT \
-            --data "1" https://api.memstash.io/values/migration-${CIRCLE_WORKFLOW_ID}
-            else
-            curl -H "Content-Type: text/plain" -H "token: ${CIRCLE_WORKFLOW_ID}" \
-            --request PUT \
-            --data "0" https://api.memstash.io/values/migration-${CIRCLE_WORKFLOW_ID}
-            fi
-
-      - run:
-          name: LogOnFail
-          when: on_fail
-          command: |
-            cat /home/circleci/.npm/_logs/*-debug.log
-            ls -la
-            cat backend/migration.txt
-     # Here's where you will add some code to rollback on failure      
+            cd backend
+            MIGRATION_RESULT=$(grep -c "has been executed successfully" migrationOutput.txt) || true
+            echo Migration result: $MIGRATION_RESULT
+            curl -H "Content-Type: text/plain" \
+               -H "token: $MEMSTASH_TOKEN" \
+               --request PUT \
+               --data ${MIGRATION_RESULT} \
+               https://api.memstash.io/values/migration_result
+      - destroy-environment
 
   deploy-frontend:
     docker:
-      # Docker image here that supports AWS CLI
-      - image: amazon/aws-cli
+      - image: python:3.7-alpine3.11
     steps:
       # Checkout code from git
       - checkout
       - run:
           name: Install dependencies
           command: |
-            yum -y install tar gzip 
-            curl -sL https://rpm.nodesource.com/setup_lts.x | bash -
-            yum -y install nodejs 
-
+            apk add curl
+            apk add --update npm
+            pip3 install awscli
       - run:
           name: Get backend url
           command: |
-            # your code here
-            BACKEND_IP=$(curl -H "token: IP-${CIRCLE_WORKFLOW_ID:0:9}" \
-                        --request GET https://api.memstash.io/values/IP)
+            BACKEND_IP=$(curl -H "token: $MEMSTASH_TOKEN" --request GET https://api.memstash.io/values/instance_ip)
+            echo BACKEND INSTANCE IP FROM MEMSTASH $BACKEND_IP
             export API_URL="http://${BACKEND_IP}:3030"
-            echo API_URL="http://${BACKEND_IP}:3030" >> "frontend/.env"
-            echo "${API_URL}"
-      - run:
-          name: Deploy frontend objects
-          command: |
-            # your code here
-            npm install webpack-dev-server -g
+            echo BACKEND API URL "${API_URL}"
             cd frontend
             npm install
             npm run build
-            aws s3 cp ./dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive
-      # Here's where you will add some code to rollback on failure      
-                    
+      - run:
+          name: Deploy frontend objects
+          command: |
+            aws s3 cp ./frontend/dist s3://udapeople-${CIRCLE_WORKFLOW_ID}/ --recursive
+      - revert-migrations
+      - destroy-environment
+
+
   deploy-backend:
     docker:
-      # Docker image here that supports Ansible
-      - image: python:3.7-alpine3.12
+      - image: python:3.7-alpine3.11
     steps:
       # Checkout code from git
       - checkout
@@ -355,26 +346,34 @@ jobs:
             - f9:d6:b4:3b:87:9c:50:38:22:2f:28:29:78:10:a6:9c
       # attach workspace
       - attach_workspace:
-          at: /tmp/.circleci/ansible
+          at: /tmp/workspace
       - run:
-          name: Install dependencies
+          name: Install AWS CLI
+          command: pip3 install awscli
+      - run:
+          name: Install ansible
           command: |
             # your code here
             apk add --update ansible
-            apk add --update tar gzip curl
-            apk add --update openssh-client
+            ansible-galaxy install weareinteractive.environment
       - run:
-          name: Compress Backend
-          command: |
-            tar -C backend -czvf artifact.tar.gz .
-            ls -la
+          name: Install curl
+          command: apk add curl
       - run:
-          name: Deploy backend
+          name: Install Open SSH
+          command: apk add openssh-client
+      - run:
+          name: Check folders
           command: |
-            # your code here
-            ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i /tmp/.circleci/ansible/inventory.txt .circleci/ansible/deploy-backend.yml
-
-      # Here's where you will add some code to rollback on failure  
+            echo $(pwd)
+            ls /root/project/backend
+      - run:
+          name: Configure backend server
+          command: |
+            echo $(curl -H "token: $MEMSTASH_TOKEN" --request GET https://api.memstash.io/values/instance_ip) >> .circleci/ansible/inventory.txt
+            ansible-playbook -i .circleci/ansible/inventory.txt .circleci/ansible/deploy-backend.yml -v
+      - revert-migrations
+      - destroy-environment
 
 #   smoke-test:
 #     docker:

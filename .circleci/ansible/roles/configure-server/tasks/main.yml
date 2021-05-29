@@ -1,33 +1,29 @@
-- name: "update packages"
+---
+- name: "Update apt packages"
   become: yes
   apt:
     update_cache: yes
 
-- name: "upgrade packages"
-  become: true
+- name: "Upgrade packages"
+  become: yes
   apt:
-    upgrade: "yes"
+    upgrade: yes
 
-- name: "install dependencies"
-  become: true
+- name: "Remove dependencies that are no longer required"
+  become: yes
   apt:
-    name: ["nodejs", "npm", "python3"]
-    state: latest
-    update_cache: yes
+    autoremove: yes
 
-- name: "install pm2"
-  become: true
+- name: Install NodeJS
+  become: yes
+  shell: |
+    curl -sL https://deb.nodesource.com/setup_10.x | sudo -E bash -
+    apt-get install -y nodejs
+
+- name: Install PM2
+  become: yes
   npm:
     name: pm2
     global: yes
     production: yes
     state: present
-
-  environment:
-    ENVIRONMENT: "{{ lookup('env', 'ENVIRONMENT') }}"
-    TYPEORM_CONNECTION: "{{ lookup('env', 'TYPEORM_CONNECTION') }}"
-    TYPEORM_ENTITIES: "{{ lookup('env', 'TYPEORM_ENTITIES') }}"
-    TYPEORM_HOST: "{{ lookup('env', 'TYPEORM_HOST') }}"
-    TYPEORM_PORT: "{{ lookup('env', 'TYPEORM_PORT') }}"
-    TYPEORM_USERNAME: "{{ lookup('env', 'TYPEORM_USERNAME') }}"
-    TYPEORM_PASSWORD: "{{ lookup('env', 'TYPEORM_PASSWORD') }}"
