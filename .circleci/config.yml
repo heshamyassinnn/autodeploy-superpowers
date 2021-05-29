@@ -190,52 +190,42 @@ jobs:
           command: |
             aws cloudformation deploy \
               --template-file .circleci/files/backend.yml \
-              --tags project=udapeople-backend_${CIRCLE_WORKFLOW_ID:0:7} \
-              --stack-name "udapeople-backend-${CIRCLE_WORKFLOW_ID:0:7}" \
-              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}"  
+              --tags project=udacity \
+              --stack-name backend-${CIRCLE_WORKFLOW_ID:0:7} \
+              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}" 
       - run:
           name: Ensure front-end infrastructure exist
           command: |
             aws cloudformation deploy \
               --template-file .circleci/files/frontend.yml \
-              --tags project=udapeople-frontend_${CIRCLE_WORKFLOW_ID:0:7} \
-              --stack-name "udapeople-frontend-${CIRCLE_WORKFLOW_ID:0:7}" \
-              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}"  
+              --tags project=udacity \
+              --stack-name frontend-${CIRCLE_WORKFLOW_ID:0:7} \
+              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}" 
       - run:
           name: Add back-end ip to ansible inventory
           command: |
-            # Your code here
-            echo "RETRIEVING THE IP ADDRESS OF THE BACKEND EC2 INSTANCE"
-            workflowidip=$(echo "aws ec2 describe-instances --filters 'Name=tag:project,Values=udapeople-backend_${CIRCLE_WORKFLOW_ID:0:7}' \
-              --query 'Reservations[*].Instances[*].PublicIpAddress' --output text")
+            ip=$(aws ec2 describe-instances \
+              --query 'Reservations[*].Instances[*].PublicIpAddress' \
+              --filters "Name=tag:project,Values=udacity" \
+              --output text) 
             
-            echo $workflowidip > backendip.sh; chmod 755 backendip.sh
-            
-            echo "POPULATING ANSIBLE INVENTORY FOR FUTURE SERVER CONFIGURATIONS STEPS"
-            ./backendip.sh >> .circleci/ansible/inventory.txt
-            backendip=$(./backendip.sh)
-            
-            echo "STORING THE IP ADDRESS OF THE BACKEND EC2 INSTANCE IN MEMSTASH FOR LATER USE"
-            
-            curl -H "Content-Type: text/plain" -H "token: 3ed5e03f-2fb6-4262-8c43-9d9c35908303" --request PUT --data "$backendip" \
-              https://api.memstash.io/values/backendip_${CIRCLE_WORKFLOW_ID:0:7}
-            
-            echo "RETRIEVING THE PUBLIC DNS NAME OF THE BACKEND EC2 INSTANCE"
-            workflowiddns=$(echo "aws ec2 describe-instances --filters 'Name=tag:project,Values="udapeople-backend_${CIRCLE_WORKFLOW_ID:0:7}"' \
-              --query 'Reservations[*].Instances[*].PublicDnsName' --output text")
-            
-            echo $workflowiddns > backenddns.sh; chmod 755 backenddns.sh
-            backenddnsurl=$(./backenddns.sh)
-            
-            echo "STORING THE PUBLIC DNS NAME OF THE BACKEND EC2 INSTANCE IN MEMSTASH FOR LATER USE"
-            
-            curl -H "Content-Type: text/plain" -H "token: 3ed5e03f-2fb6-4262-8c43-9d9c35908303" --request PUT --data "$backenddnsurl" \
-              https://api.memstash.io/values/url_${CIRCLE_WORKFLOW_ID:0:7}
+            echo "$ip" >> .circleci/ansible/inventory.txt
+            echo "$ip"
+            curl -H "Content-Type: text/plain" -H "token: IP-${CIRCLE_WORKFLOW_ID:0:9}" \
+            --request PUT \
+            --data "$ip" https://api.memstash.io/values/IP
 
+      - run:
+          name: Dependencies
+          command: |
+            cat .circleci/ansible/inventory.txt
+            ls ~/project/.circleci/ansible/
+            cat ~/project/.circleci/ansible/inventory.txt
+            yum -y install tar gzip jq npm
       - persist_to_workspace:
-          root: ~/
+          root: .circleci/ansible
           paths:
-            - project/.circleci/ansible/inventory.txt
+            - inventory.txt
       # Here's where you will add some code to rollback on failure      
 
   configure-infrastructure:
@@ -260,7 +250,7 @@ jobs:
             && pip3 install --upgrade pip \
             && pip3 install awscli \
             && rm -rf /var/cache/apk/*
-            
+
             apk add --update ansible
       - run:
           name: Configure server
