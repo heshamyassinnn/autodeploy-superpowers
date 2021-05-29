@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  slack: circleci/slack@4.2.0
+
 commands:
   destroy-environment:
     description: Destroy back-end and front-end cloudformation stacks given a workflow ID.
@@ -31,6 +34,25 @@ commands:
             #  Add revert code here. You can find this in the Getting Started section.
               exit 1
             fi
+
+  slack-fail:
+    description: Send notification to Slack
+    steps:
+      - slack/notify:
+          channel: C023EV1E6M8
+          event: fail
+          custom: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                      "type": "mrkdwn",
+                      "text": "Failed in build #$CIRCLE_BUILD_NUM of $CIRCLE_REPOSITORY_URL ($CIRCLE_BRANCH)\n-$CIRCLE_USERNAME: $COMMIT_MESSAGE"
+                  }
+                }
+              ]
+            }
             
 jobs:
   build-frontend:
@@ -52,6 +74,7 @@ jobs:
       - save_cache:
           paths: [frontend/node_modules]
           key: frontend-build
+      - slack-fail
 
   build-backend:
     docker:
@@ -72,6 +95,7 @@ jobs:
       - save_cache:
           paths: [backend/node_modules]
           key: backend-build
+      - slack-fail
 
   test-frontend:
     docker:
@@ -89,6 +113,7 @@ jobs:
              # Your code here
              cd ~/project/frontend
              npm run test
+      - slack-fail
                 
   test-backend:
     docker:
@@ -106,6 +131,8 @@ jobs:
              # Your code here
              cd ~/project/backend
              npm run test
+             return 1
+      - slack-fail
             
   scan-frontend:
     docker:
@@ -125,6 +152,7 @@ jobs:
              cd ~/project/frontend
              npm install
              npm audit fix --audit-level=critical --force
+      - slack-fail
              
 
 
@@ -145,6 +173,7 @@ jobs:
              # Your code here
              cd ~/project/backend
              npm audit fix --audit-level=critical --force
+      - slack-fail
 
 #   deploy-infrastructure:
 #     docker:
