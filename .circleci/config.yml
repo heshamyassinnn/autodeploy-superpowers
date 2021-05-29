@@ -261,8 +261,6 @@ jobs:
             echo BACKEND EC2 IP ${INSTANCE_IP}
             curl -H "Content-Type: text/plain" -H "token: $MEMSTASH_TOKEN" --request PUT --data ${INSTANCE_IP} https://api.memstash.io/values/instance_ip
       - destroy-environment
-      - notify-failure
-      - notify-success
 
   configure-infrastructure:
     docker:
