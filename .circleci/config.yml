@@ -113,7 +113,7 @@ jobs:
           name: Build front-end
           command: |
             cd frontend
-            npm i
+            npm install
             npm run build
       - save_cache:
           paths: [frontend/node_modules]
@@ -132,7 +132,9 @@ jobs:
       - run:
           name: Back-end build
           command: |
-            cd backend && npm i && npm run build
+            cd backend
+            npm install
+            npm run build
       - run:
           name: Copy compiled backend for future use in Ansible
           command: |
@@ -159,11 +161,11 @@ jobs:
       - checkout
       # Restore from cache
       - restore_cache:
-          keys:
-            - frontend-${CIRCLE_WORKFLOW_ID}
+          key: frontend-${CIRCLE_WORKFLOW_ID}
       - run:
           name: Run Frontend tests
           command: |
+            ls
             cd frontend
             npm run test
 
@@ -175,11 +177,11 @@ jobs:
       - checkout
       # Restore from cache
       - restore_cache:
-          keys:
-            - backend-${CIRCLE_WORKFLOW_ID}
+          key: backend-${CIRCLE_WORKFLOW_ID}
       - run:
           name: Run Backend tests
           command: |
+            ls
             cd backend
             npm run test
 
@@ -192,8 +194,7 @@ jobs:
       - checkout
       # Restore from cache
       - restore_cache:
-          keys:
-            - frontend-${CIRCLE_WORKFLOW_ID}
+          key: frontend-${CIRCLE_WORKFLOW_ID}
       - run:
           name: Scan Frontend dependencies
           command: |
@@ -210,8 +211,7 @@ jobs:
       - checkout
       # Restore from cache
       - restore_cache:
-          keys:
-            - backend-${CIRCLE_WORKFLOW_ID}
+          key: backend-${CIRCLE_WORKFLOW_ID}
       - run:
           name: Scan Backend dependencies
           command: |
