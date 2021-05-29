@@ -271,7 +271,7 @@ jobs:
       # Add ssh keys with fingerprint
       - add_ssh_keys:
           fingerprints:
-            - "9e:49:06:a9:1f:7b:8e:4a:c3:8d:f8:73:99:60:c1:65:7e:79:1f:cb"
+            - f9:d6:b4:3b:87:9c:50:38:22:2f:28:29:78:10:a6:9c
       - run:
           name: Install ansible
           command: |
