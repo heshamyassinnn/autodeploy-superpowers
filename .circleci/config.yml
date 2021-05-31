@@ -91,7 +91,7 @@ commands:
       - run:
           name: Export backend API URL
           command: |
-            BACKEND_URL=$(curl -H "token: c1bb8d5a-fbac-4fad-9506-124d34aa4fb6" --request GET https://api.memstash.io/values/backend_api)
+            BACKEND_URL=$(curl -H "token: qzyg4s25zb4bnlk25sxe" --request GET https://api.memstash.io/values/backend_api)
             export default API_URL=http://$BACKEND_URL:3030
             echo "API_URL=$API_URL" >> frontend/.env
 
@@ -195,7 +195,7 @@ jobs:
           command: cd /home/circleci/project/frontend && npm install
       - run:
           name: Audit NPM Dependencies
-          command: cd /home/circleci/project/frontend && npm audit --audit-level=critical
+          command: cd /home/circleci/project/frontend && npm audit fix --audit-level=critical --force
 
 
   scan-backend:
@@ -209,7 +209,7 @@ jobs:
           command: cd /home/circleci/project/backend && npm install
       - run:
           name: Audit NPM Dependencies
-          command: cd /home/circleci/project/backend && npm audit --audit-level=critical
+          command: cd /home/circleci/project/backend && npm audit fix --audit-level=critical --force
 
   deploy-infrastructure:
     docker:
@@ -233,7 +233,7 @@ jobs:
               --filters "Name=tag:Name,Values=backend-${CIRCLE_WORKFLOW_ID:0:7}" \
               --query 'Reservations[*].Instances[*].PublicDnsName' \
               --output text)
-            curl -H "Content-Type: text/plain" -H "token: c1bb8d5a-fbac-4fad-9506-124d34aa4fb6" \
+            curl -H "Content-Type: text/plain" -H "token: qzyg4s25zb4bnlk25sxe" \
               --request PUT \
               --data $BACKEND_API \
               https://api.memstash.io/values/backend_api
@@ -267,7 +267,7 @@ jobs:
       - run:
           name: Configure backend server
           command: |
-            echo $(curl -H "token: c1bb8d5a-fbac-4fad-9506-124d34aa4fb6" --request GET https://api.memstash.io/values/backend_api) >> .circleci/ansible/inventory
+            echo $(curl -H "token: qzyg4s25zb4bnlk25sxe" --request GET https://api.memstash.io/values/backend_api) >> .circleci/ansible/inventory
             ansible-playbook -i .circleci/ansible/inventory .circleci/ansible/config-server-playbook.yml
 
 
@@ -368,7 +368,7 @@ jobs:
       - run:
           name: Configure backend server
           command: |
-            echo $(curl -H "token: c1bb8d5a-fbac-4fad-9506-124d34aa4fb6" --request GET https://api.memstash.io/values/backend_api) >> .circleci/ansible/inventory
+            echo $(curl -H "token: qzyg4s25zb4bnlk25sxe" --request GET https://api.memstash.io/values/backend_api) >> .circleci/ansible/inventory
             cd .circleci/ansible
             ansible-playbook -i inventory deploy-backend-playbook.yml
       - revert-migrations
