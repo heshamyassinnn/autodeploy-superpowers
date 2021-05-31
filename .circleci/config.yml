@@ -405,8 +405,8 @@ jobs:
               --query 'Reservations[*].Instances[*].PublicIpAddress' \
               --output text)
             curl "http://${BACKEND_IP}:3030/api/status"
-      - revert-migrations
-      - destroy-environment
+      # - revert-migrations
+      # - destroy-environment
 
   cloudfront-update:
     docker:
