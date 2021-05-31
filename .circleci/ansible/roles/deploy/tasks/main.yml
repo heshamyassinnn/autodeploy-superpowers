@@ -36,7 +36,7 @@
   args:
     chdir: /home/ubuntu/app
 
-- name: Start PM2
+- name: "Set pm2 start as service"
+  become: yes
   shell: |
-    cd /home/ubuntu/app
-    pm2 start npm --name backend -- start
+    env PATH=$PATH:/usr/local/bin pm2 startup -u ubuntu
