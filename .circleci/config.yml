@@ -314,7 +314,7 @@ jobs:
             echo TYPEORM_DATABASE=$TYPEORM_DATABASE >> .env
 
             ls -la
-            
+
             echo "INSTALLING NPM MODULE DEPENDENCIES"
             npm i > npminstall.log
 
@@ -441,12 +441,12 @@ jobs:
             curl -v "${FRONTEND_URL}"
             if curl -s ${FRONTEND_URL} | grep "Welcome"
             then
-              return 1
+              return 0
             else
               return 1
             fi
-      - revert-migrations
-      - destroy-environment
+      # - revert-migrations
+      # - destroy-environment
 
   # cloudfront-update:
   #   docker:
