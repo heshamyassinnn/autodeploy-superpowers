@@ -300,7 +300,7 @@ jobs:
       - run:
           name: Run migrations
           command: |
-            ls -la
+            cd backend
             echo "BUILDING THE BACKEND ENVIRONMENT FILE FOR POSTGRES MIGRATIONS"
             echo ENVIROMENT=production > .env
             echo TYPEORM_CONNECTION=postgres >> .env
@@ -320,8 +320,6 @@ jobs:
             npm install oauth-sign >> npminstall.log
 
             echo "RUNNING POSTGRES DATABASE MIGRATIONS"
-            cd backend
-            ls -la
             npm run migrations > migrationOutput.txt
             cat migrationOutput.txt
           no_output_timeout: 15m
