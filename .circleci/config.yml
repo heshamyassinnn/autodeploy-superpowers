@@ -300,21 +300,42 @@ jobs:
       - run:
           name: Run migrations
           command: |
+            ls -la
+            echo "BUILDING THE BACKEND ENVIRONMENT FILE FOR POSTGRES MIGRATIONS"
+            echo ENVIROMENT=production > .env
+            echo TYPEORM_CONNECTION=postgres >> .env
+            echo TYPEORM_MIGRATIONS_DIR=./src/migrations >> .env
+            echo TYPEORM_ENTITIES=./src/modules/domain/**/*.entity.ts >> .env
+            echo TYPEORM_MIGRATIONS=./src/migrations/*.ts >> .env
+            echo TYPEORM_HOST=$TYPEORM_HOST >> .env
+            echo TYPEORM_PORT=$TYPEORM_PORT >> .env
+            echo TYPEORM_USERNAME=$TYPEORM_USERNAME >> .env
+            echo TYPEORM_PASSWORD=$TYPEORM_PASSWORD >> .env
+            echo TYPEORM_DATABASE=$TYPEORM_DATABASE >> .env
+
+            echo "INSTALLING NPM MODULE DEPENDENCIES"
+            npm i > npminstall.log
+
+            echo "INSTALLING OATH-SIGN PACKAGE"
+            npm install oauth-sign >> npminstall.log
+
+            echo "RUNNING POSTGRES DATABASE MIGRATIONS"
             cd backend
-            npm run migrations
-            # cat migrationOutput.txt
+            ls -la
+            npm run migrations > migrationOutput.txt
+            cat migrationOutput.txt
           no_output_timeout: 15m
-      # - run:
-      #     name: Send migration results to memstash
-      #     command: |
-      #       cd backend
-      #       MIGRATION_RESULT=$(grep -c "has been executed successfully" migrationOutput.txt) || true
-      #       echo Migration result: $MIGRATION_RESULT
-      #       curl -H "Content-Type: text/plain" \
-      #          -H "token: $MEMSTASH_TOKEN" \
-      #          --request PUT \
-      #          --data ${MIGRATION_RESULT} \
-      #          https://api.memstash.io/values/migration_result
+      - run:
+          name: Send migration results to memstash
+          command: |
+            cd backend
+            MIGRATION_RESULT=$(grep -c "has been executed successfully" migrationOutput.txt) || true
+            echo Migration result: $MIGRATION_RESULT
+            curl -H "Content-Type: text/plain" \
+               -H "token: $MEMSTASH_TOKEN" \
+               --request PUT \
+               --data ${MIGRATION_RESULT} \
+               https://api.memstash.io/values/migration_result
       # - destroy-environment
       - notify-failure
       - notify-success
