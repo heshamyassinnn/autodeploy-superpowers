@@ -421,6 +421,7 @@ jobs:
             apk add curl
             apk add ansible
             pip3 install awscli
+            
       - run:
           name: Backend smoke test.
           command: |
