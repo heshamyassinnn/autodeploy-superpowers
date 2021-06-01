@@ -16,10 +16,9 @@
 
 - name: Install NodeJS
   become: yes
-  apt:
-    name: ["nodejs", "npm"]
-    state: latest
-    update_cache: yes
+  shell: |
+    curl -sL https://deb.nodesource.com/setup_10.x | sudo -E bash -
+    apt-get install -y nodejs
 
 - name: Install PM2
   become: yes
