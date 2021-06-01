@@ -112,7 +112,7 @@ jobs:
           name: Build front-end
           command: |
             cd frontend
-            npm i
+            sudo npm install npm@latest -g
             npm run build
       - save_cache:
           paths: [frontend/node_modules]
@@ -132,23 +132,11 @@ jobs:
           name: Back-end build
           command: |
             cd backend
-            npm i
-            npm run build
-      - run:
-          name: Copy compiled backend for future use in Ansible
-          command: |
-            mkdir /tmp/workspace
-            cp ./backend/package.json /tmp/workspace/
-            cd backend/dist
-            tar -zcvf /tmp/workspace/backend.tar.gz ./
+            sudo npm install npm@latest -g
+            sudo npm run build
       - save_cache:
           paths: [backend/node_modules]
           key: backend-${CIRCLE_WORKFLOW_ID}
-      - persist_to_workspace:
-          root: /tmp/workspace
-          paths:
-            - backend.tar.gz
-            - package.json
       - notify-failure
       - notify-success
 
@@ -166,8 +154,7 @@ jobs:
           name: Run Frontend tests
           command: |
             cd frontend
-            ls
-            sudo npm install oauth-sign
+            sudo npm install npm@latest -g
             npm run test
       - notify-failure
       - notify-success
@@ -184,8 +171,8 @@ jobs:
       - run:
           name: Run Backend tests
           command: |
-            ls
             cd backend
+            sudo npm install npm@latest -g
             npm run test
       - notify-failure
       - notify-success
@@ -204,7 +191,8 @@ jobs:
           name: Scan Frontend dependencies
           command: |
             cd frontend
-            npm audit fix --audit-level=critical --force
+            sudo npm install
+            sudo npm audit fix --force 
       - notify-failure
       - notify-success
 
@@ -224,7 +212,8 @@ jobs:
           name: Scan Backend dependencies
           command: |
             cd backend
-            npm audit fix --audit-level=critical --force
+            sudo npm install
+            sudo npm audit fix --force
       - notify-failure
       - notify-success
 
@@ -259,7 +248,18 @@ jobs:
               --query 'Reservations[*].Instances[*].PublicDnsName' \
               --output text)
             echo BACKEND EC2 IP ${INSTANCE_IP}
-            curl -H "Content-Type: text/plain" -H "token: $MEMSTASH_TOKEN" --request PUT --data ${INSTANCE_IP} https://api.memstash.io/values/instance_ip
+            curl -H "Content-Type: text/plain" -H "token: tghz1tr48dndyu0gk1xb" --request PUT --data ${INSTANCE_IP} https://api.memstash.io/values/instance_ip
+      - run:
+          name: Dependencies
+          command: |
+            cat .circleci/ansible/inventory.txt
+            ls ~/project/.circleci/ansible/
+            cat ~/project/.circleci/ansible/inventory.txt
+            yum -y install tar gzip jq npm
+      - persist_to_workspace:
+          root: .circleci/ansible
+          paths:
+            - inventory.txt
       - destroy-environment
 
   configure-infrastructure:
@@ -284,7 +284,7 @@ jobs:
           name: Configure backend server
           command: |
             ls -la
-            echo $(curl -H "token: $MEMSTASH_TOKEN" --request GET https://api.memstash.io/values/instance_ip) >> .circleci/ansible/inventory.txt
+            echo $(curl -H "token: tghz1tr48dndyu0gk1xb" --request GET https://api.memstash.io/values/instance_ip) >> .circleci/ansible/inventory.txt
             ansible-playbook -i .circleci/ansible/inventory.txt .circleci/ansible/configure-server.yml
 
 
@@ -295,34 +295,15 @@ jobs:
     steps:
       # Checkout code from git
       - checkout
-      - restore_cache:
-          keys: backend-${CIRCLE_WORKFLOW_ID}
       - run:
           name: Run migrations
           command: |
             cd backend
-            echo "BUILDING THE BACKEND ENVIRONMENT FILE FOR POSTGRES MIGRATIONS"
-            echo ENVIROMENT=production > .env
-            echo TYPEORM_CONNECTION=postgres >> .env
-            echo TYPEORM_MIGRATIONS_DIR=./src/migrations >> .env
-            echo TYPEORM_ENTITIES=./src/modules/domain/**/*.entity.ts >> .env
-            echo TYPEORM_MIGRATIONS=./src/migrations/*.ts >> .env
-            echo TYPEORM_HOST=$TYPEORM_HOST >> .env
-            echo TYPEORM_PORT=$TYPEORM_PORT >> .env
-            echo TYPEORM_USERNAME=$TYPEORM_USERNAME >> .env
-            echo TYPEORM_PASSWORD=$TYPEORM_PASSWORD >> .env
-            echo TYPEORM_DATABASE=$TYPEORM_DATABASE >> .env
-
-            ls -la
-
-            echo "INSTALLING NPM MODULE DEPENDENCIES"
-            npm i > npminstall.log
-
-            echo "INSTALLING OATH-SIGN PACKAGE"
-            npm install oauth-sign >> npminstall.log
-
-            echo "RUNNING POSTGRES DATABASE MIGRATIONS"
-            npm run migrations > migrationOutput.txt
+            npm install
+            npm run build
+            touch migration.txt
+            echo "RUNNING MIGRATIONS"
+            npm run migrations >> migrationOutput.txt
             cat migrationOutput.txt
           no_output_timeout: 15m
       - run:
@@ -332,10 +313,17 @@ jobs:
             MIGRATION_RESULT=$(grep -c "has been executed successfully" migrationOutput.txt) || true
             echo Migration result: $MIGRATION_RESULT
             curl -H "Content-Type: text/plain" \
-               -H "token: $MEMSTASH_TOKEN" \
+               -H "token: tghz1tr48dndyu0gk1xb" \
                --request PUT \
                --data ${MIGRATION_RESULT} \
                https://api.memstash.io/values/migration_result
+      - run:
+          name: LogOnFail
+          when: on_fail
+          command: |
+            cat /home/circleci/.npm/_logs/*-debug.log
+            ls -la
+            cat backend/migration.txt
       - destroy-environment
       - notify-failure
       - notify-success
@@ -355,16 +343,17 @@ jobs:
       - run:
           name: Get backend url
           command: |
-            BACKEND_IP=$(curl -H "token: $MEMSTASH_TOKEN" --request GET https://api.memstash.io/values/instance_ip)
+            BACKEND_IP=$(curl -H "token: tghz1tr48dndyu0gk1xb" --request GET https://api.memstash.io/values/instance_ip)
             echo BACKEND INSTANCE IP FROM MEMSTASH $BACKEND_IP
             export API_URL="http://${BACKEND_IP}:3030"
             echo BACKEND API URL "${API_URL}"
-            cd frontend
-            npm install
-            npm run build
       - run:
           name: Deploy frontend objects
           command: |
+            cd frontend
+            npm install
+            npm run build
+            ls -la
             aws s3 cp ./frontend/dist s3://udapeople-${CIRCLE_WORKFLOW_ID}/ --recursive
       - revert-migrations
       - destroy-environment
@@ -382,65 +371,50 @@ jobs:
             - f9:d6:b4:3b:87:9c:50:38:22:2f:28:29:78:10:a6:9c
       # attach workspace
       - attach_workspace:
-          at: /tmp/workspace
+          at: /tmp/.circleci/ansible
       - run:
           name: Install AWS CLI
           command: pip3 install awscli
       - run:
-          name: Install ansible
+          name: Install dependencies
           command: |
-            # your code here
             apk add --update ansible
+            apk add --update tar gzip curl
+            apk add --update openssh-client
       - run:
-          name: Install curl
-          command: apk add curl
-      - run:
-          name: Install Open SSH
-          command: apk add openssh-client
-      - run:
-          name: Check folders
+          name: Compress Backend
           command: |
-            echo $(pwd)
-            ls /root/project/backend
+            tar -C backend -czvf artifact.tar.gz .
+            ls -la
       - run:
-          name: Configure backend server
+          name: Deploy Backend
           command: |
-            echo $(curl -H "token: $MEMSTASH_TOKEN" --request GET https://api.memstash.io/values/instance_ip) >> .circleci/ansible/inventory.txt
-            ansible-playbook -i .circleci/ansible/inventory.txt .circleci/ansible/deploy-backend.yml
+            ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i /tmp/.circleci/ansible/inventory.txt .circleci/ansible/deploy-backend.yml
       - revert-migrations
       - destroy-environment
 
   smoke-test:
     docker:
-      - image: python:3.7-alpine3.11
+      - image: python:3.7-alpine3.11 
     steps:
       - checkout
       - run:
           name: Install dependencies
           command: |
-            apk add curl
-            apk add ansible
-            pip3 install awscli
-            
+            apk add --update tar gzip curl
       - run:
-          name: Backend smoke test.
+          name: Backend smoke test
           command: |
-            BACKEND_IP=$(curl -H "token: $MEMSTASH_TOKEN" --request GET https://api.memstash.io/values/instance_ip)
-            BACKEND_URL="${BACKEND_IP}:3030/api/status"
-            echo BACKEND URL "${BACKEND_URL}"
-            curl -v "${BACKEND_URL}"
-            if curl -s "${BACKEND_URL}" | grep "ok"
-            then
-              return 0
-            else
-              return 1
-            fi
+            BACKEND_IP=$(curl -H "token: Itghz1tr48dndyu0gk1xb" \
+                        --request GET https://api.memstash.io/values/IP)
+            URL="http://$BACKEND_IP:3030/api/status"
+            echo $URL
+            curl $URL
       - run:
           name: Frontend smoke test.
           command: |
-            FRONTEND_URL="http://udapeople-${CIRCLE_WORKFLOW_ID}.s3-website.us-east-2.amazonaws.com/#/employees"
-            curl -v "${FRONTEND_URL}"
-            if curl -s ${FRONTEND_URL} | grep "Welcome"
+            URL="http://udapeople-${CIRCLE_WORKFLOW_ID:0:7}.s3-website-us-east-2.amazonaws.com"
+            if curl -s ${URL} | grep "Welcome"
             then
               return 0
             else
