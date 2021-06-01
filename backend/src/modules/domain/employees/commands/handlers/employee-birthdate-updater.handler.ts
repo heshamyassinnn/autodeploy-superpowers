@@ -21,7 +21,7 @@ export class EmployeeBirthDateUpdater extends BaseCommandHandler<UpdateEmployeeB
 
     employee.birthdate = moment(birthdate)
     .utc()
-    .toDate();
+    .format();
 
     await this.employeeRepository.save(employee);
   }

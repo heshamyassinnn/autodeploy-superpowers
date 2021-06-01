@@ -106,8 +106,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          keys:
-            - frontend-${CIRCLE_WORKFLOW_ID}
+          keys: [frontend-build]
       - run:
           name: Build front-end
           command: |
@@ -116,9 +115,7 @@ jobs:
             npm run build
       - save_cache:
           paths: [frontend/node_modules]
-          key: frontend-${CIRCLE_WORKFLOW_ID}
-      - notify-failure
-      - notify-success
+          key: frontend-build
 
   build-backend:
     docker:
@@ -126,8 +123,7 @@ jobs:
     steps:
       - checkout
       - restore_cache:
-          keys:
-            - backend-${CIRCLE_WORKFLOW_ID}
+          keys: [backend-build]
       - run:
           name: Back-end build
           command: |
@@ -136,9 +132,7 @@ jobs:
             sudo npm run build
       - save_cache:
           paths: [backend/node_modules]
-          key: backend-${CIRCLE_WORKFLOW_ID}
-      - notify-failure
-      - notify-success
+          key: backend-build
 
   test-frontend:
     docker:
@@ -148,8 +142,7 @@ jobs:
       - checkout
       # Restore from cache
       - restore_cache:
-          keys:
-            - frontend-${CIRCLE_WORKFLOW_ID}
+          keys: [frontend-build]
       - run:
           name: Run Frontend tests
           command: |
@@ -167,7 +160,7 @@ jobs:
       - checkout
       # Restore from cache
       - restore_cache:
-          key: backend-${CIRCLE_WORKFLOW_ID}
+          keys: [backend-build]
       - run:
           name: Run Backend tests
           command: |
@@ -186,7 +179,7 @@ jobs:
       - checkout
       # Restore from cache
       - restore_cache:
-          key: frontend-${CIRCLE_WORKFLOW_ID}
+          keys: [frontend-build]
       - run:
           name: Scan Frontend dependencies
           command: |
@@ -206,8 +199,7 @@ jobs:
       - checkout
       # Restore from cache
       - restore_cache:
-          keys:
-            - backend-${CIRCLE_WORKFLOW_ID}
+          keys: [backend-build]
       - run:
           name: Scan Backend dependencies
           command: |
@@ -229,17 +221,17 @@ jobs:
           command: |
             aws cloudformation deploy \
               --template-file .circleci/files/backend.yml \
-              --tags project=udapeople-backend \
-              --stack-name "backend-${CIRCLE_WORKFLOW_ID}" \
-              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID}"
+              --tags project=udacity \
+              --stack-name backend-${CIRCLE_WORKFLOW_ID:0:7} \
+              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}" 
       - run:
           name: Ensure front-end infrastructure exist
           command: |
             aws cloudformation deploy \
               --template-file .circleci/files/frontend.yml \
-              --tags project=udapeople-frontend \
-              --stack-name "frontend-${CIRCLE_WORKFLOW_ID}" \
-              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID}"
+              --tags project=udacity \
+              --stack-name frontend-${CIRCLE_WORKFLOW_ID:0:7} \
+              --parameter-overrides ID="${CIRCLE_WORKFLOW_ID:0:7}"
       - run:
           name: Store back-end IP using memstash.io
           command: |
@@ -270,23 +262,28 @@ jobs:
       - checkout
       # Add ssh keys with fingerprint
       - add_ssh_keys:
-          fingerprints:
-            - f9:d6:b4:3b:87:9c:50:38:22:2f:28:29:78:10:a6:9c
+          fingerprints: ["ed:e9:83:cf:43:79:b8:a7:92:3b:e6:66:18:06:61:83"]
+      - attach_workspace:
+          at: /tmp/.circleci/ansible
       - run:
           name: Install ansible
           command: |
+            apk add --no-cache \
+                python3 \
+                py3-pip \
+            && pip3 install --upgrade pip \
+            && pip3 install \
+                awscli \
+            && rm -rf /var/cache/apk/*
             apk add --update ansible
-            ansible-galaxy install weareinteractive.environment
+            
       - run:
-          name: Install curl
-          command: apk add curl
-      - run:
-          name: Configure backend server
+          name: Configure server
           command: |
-            ls -la
-            echo $(curl -H "token: tghz1tr48dndyu0gk1xb" --request GET https://api.memstash.io/values/instance_ip) >> .circleci/ansible/inventory.txt
-            ansible-playbook -i .circleci/ansible/inventory.txt .circleci/ansible/configure-server.yml
-
+            ansible-playbook -i /tmp/.circleci/ansible/inventory.txt .circleci/ansible/configure-server.yml
+      
+      - revert-migrations
+      - destroy-environment # Rollback on failure
 
   run-migrations:
     docker:
@@ -295,6 +292,12 @@ jobs:
     steps:
       # Checkout code from git
       - checkout
+      - run:
+          name: awscli install
+          command: |
+            sudo apt-get -y -qq update
+            sudo apt-get -qq install awscli
+            sudo apt-get -y -qq install python3
       - run:
           name: Run migrations
           command: |
