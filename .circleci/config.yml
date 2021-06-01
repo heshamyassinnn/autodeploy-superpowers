@@ -259,7 +259,7 @@ jobs:
               --query 'Reservations[*].Instances[*].PublicDnsName' \
               --output text)
             echo BACKEND EC2 IP ${INSTANCE_IP}
-            curl -H "Content-Type: text/plain" -H "token: $MEMSTASH_TOKEN" --request PUT --data ${INSTANCE_IP} https://api.memstash.io/values/instance_ip
+            curl -H "Content-Type: text/plain" -H "token: g8v93nl22jw2y02njtoz" --request PUT --data ${INSTANCE_IP} https://api.memstash.io/values/instance_ip
       - destroy-environment
 
   configure-infrastructure:
@@ -284,7 +284,7 @@ jobs:
           name: Configure backend server
           command: |
             ls -la
-            echo $(curl -H "token: $MEMSTASH_TOKEN" --request GET https://api.memstash.io/values/instance_ip) >> .circleci/ansible/inventory.txt
+            echo $(curl -H "token: g8v93nl22jw2y02njtoz" --request GET https://api.memstash.io/values/instance_ip) >> .circleci/ansible/inventory.txt
             cat .circleci/ansible/inventory.txt
             ansible-playbook -i .circleci/ansible/inventory.txt .circleci/ansible/configure-server.yml
 
@@ -333,7 +333,7 @@ jobs:
             MIGRATION_RESULT=$(grep -c "has been executed successfully" migrationOutput.txt) || true
             echo Migration result: $MIGRATION_RESULT
             curl -H "Content-Type: text/plain" \
-               -H "token: $MEMSTASH_TOKEN" \
+               -H "token: g8v93nl22jw2y02njtoz" \
                --request PUT \
                --data ${MIGRATION_RESULT} \
                https://api.memstash.io/values/migration_result
@@ -356,7 +356,7 @@ jobs:
       - run:
           name: Get backend url
           command: |
-            BACKEND_IP=$(curl -H "token: $MEMSTASH_TOKEN" --request GET https://api.memstash.io/values/instance_ip)
+            BACKEND_IP=$(curl -H "token: g8v93nl22jw2y02njtoz" --request GET https://api.memstash.io/values/instance_ip)
             echo BACKEND INSTANCE IP FROM MEMSTASH $BACKEND_IP
             export API_URL="http://${BACKEND_IP}:3030"
             echo BACKEND API URL "${API_URL}"
@@ -409,7 +409,7 @@ jobs:
       - run:
           name: Configure backend server
           command: |
-            echo $(curl -H "token: $MEMSTASH_TOKEN" --request GET https://api.memstash.io/values/instance_ip) >> .circleci/ansible/inventory.txt
+            echo $(curl -H "token: g8v93nl22jw2y02njtoz" --request GET https://api.memstash.io/values/instance_ip) >> .circleci/ansible/inventory.txt
             ansible-playbook -i .circleci/ansible/inventory.txt .circleci/ansible/deploy-backend.yml
       - revert-migrations
       - destroy-environment
@@ -429,7 +429,7 @@ jobs:
       - run:
           name: Backend smoke test.
           command: |
-            BACKEND_IP=$(curl -H "token: $MEMSTASH_TOKEN" --request GET https://api.memstash.io/values/instance_ip)
+            BACKEND_IP=$(curl -H "token: g8v93nl22jw2y02njtoz" --request GET https://api.memstash.io/values/instance_ip)
             BACKEND_URL="${BACKEND_IP}:3030/api/status"
             echo BACKEND URL "${BACKEND_URL}"
             curl -v "${BACKEND_URL}"
