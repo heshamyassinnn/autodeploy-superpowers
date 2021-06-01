@@ -285,6 +285,7 @@ jobs:
           command: |
             ls -la
             echo $(curl -H "token: $MEMSTASH_TOKEN" --request GET https://api.memstash.io/values/instance_ip) >> .circleci/ansible/inventory.txt
+            cat .circleci/ansible/inventory.txt
             ansible-playbook -i .circleci/ansible/inventory.txt .circleci/ansible/configure-server.yml
 
 
@@ -362,6 +363,7 @@ jobs:
             cd frontend
             npm install
             npm run build
+            ls -la
       - run:
           name: Deploy frontend objects
           command: |
@@ -401,6 +403,8 @@ jobs:
           name: Check folders
           command: |
             echo $(pwd)
+            ls -la
+            ls /root/project/
             ls /root/project/backend
       - run:
           name: Configure backend server
